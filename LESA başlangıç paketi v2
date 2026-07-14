@@ -1,0 +1,758 @@
+/// <reference types="next" />
+/// <reference types="next/image-types/global" />
+
+// Bu dosya Next.js tarafından kullanılır.
+
+{
+  "name": "lesa",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.7.0",
+    "@supabase/supabase-js": "^2.57.0",
+    "lucide-react": "^0.468.0",
+    "next": "^16.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^16.0.0",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5.7.0"
+  }
+}
+
+export default {
+  plugins: {
+    "@tailwindcss/postcss": {},
+  },
+};
+
+# LESA Başlangıç Paketi v2
+
+CEM Su Sayaçları için geliştirilen LESA platformunun çalışır başlangıç sürümüdür.
+
+## Bu sürümde hazır olanlar
+- Next.js tabanlı Türkçe web uygulaması
+- Supabase e-posta/şifre ile çalışan giriş ekranı
+- Oturum açmayan kullanıcıyı dashboard'dan login ekranına yönlendiren koruma
+- Supabase verilerini sayan ilk canlı operasyon dashboard'u
+- Ürün, müşteri, ihale, şartname kriteri, teklif, sipariş, üretim ilerlemesi, fatura, teminat, garanti, servis ve görev veri modeli
+- Örnek CEM ürün kayıtları
+- Satır düzeyi güvenlik (RLS) ve ilk kullanım politikaları
+- Kullanıcı açıldığında otomatik profil kaydı
+- Vercel ortam değişkeni örneği
+
+## SQL dosyasını kolay bulmak için
+Aynı SQL iki yerde bulunur:
+- Ana klasörde: `SUPABASE_SCHEMA.sql`
+- Alt klasörde: `supabase/schema.sql`
+
+İlk kez kurulum yaparken ana klasördeki `SUPABASE_SCHEMA.sql` dosyasını kullan.
+
+## Hızlı kurulum
+1. ZIP'i çıkar ve klasörün içindeki tüm dosyaları GitHub `aliozgenc61/LESA` deposuna yükle.
+2. Supabase → SQL Editor → New query bölümünde `SUPABASE_SCHEMA.sql` içeriğini çalıştır.
+3. Supabase → Authentication → Users bölümünden ilk kullanıcıyı oluştur.
+4. Supabase proje URL'sini ve publishable/anon anahtarını Vercel Environment Variables alanına gir.
+5. Vercel'de GitHub LESA reposunu Import edip Deploy et.
+
+Ayrıntılı anlatım: `KURULUM_REHBERI_TR.md`
+
+LESA BAŞLANGIÇ PAKETİ v2 — İLK BURAYI OKU
+
+1) Bu ZIP'i bilgisayarında klasöre çıkar.
+2) GitHub'daki LESA deposunda eski dosyalar varsa silmene gerek yoktur; v2 dosyalarını yükleyip üzerine yazabilirsin.
+3) Klasörün İÇİNDEKİ tüm dosya ve klasörleri GitHub'a yükle.
+4) GitHub ana ekranında özellikle şu dosyaların göründüğünü kontrol et:
+   - package.json
+   - SUPABASE_SCHEMA.sql
+   - app
+   - components
+   - lib
+   - supabase
+5) Supabase SQL Editor'de, GitHub ana dizinindeki SUPABASE_SCHEMA.sql dosyasını çalıştır.
+6) Sonra KURULUM_REHBERI_TR.md dosyasındaki adımlara devam et.
+
+GÜVENLİK:
+API anahtarlarını, veritabanı şifresini veya service_role anahtarını GitHub'a/söhbete yazma.
+
+-- LESA Çekirdek Veritabanı v1
+create extension if not exists "pgcrypto";
+
+create type public.app_role as enum ('owner','board','general_manager','sales','planning','accounting','production','quality','service','viewer');
+create type public.record_status as enum ('new','in_review','waiting_approval','approved','rejected','won','lost','cancelled','completed');
+
+create table public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  full_name text not null,
+  role public.app_role not null default 'viewer',
+  department text,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create table public.customers (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  customer_type text,
+  city text,
+  country text default 'Türkiye',
+  tax_no text,
+  email text,
+  phone text,
+  payment_risk text,
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+create table public.products (
+  id uuid primary key default gen_random_uuid(),
+  code text unique not null,
+  series text not null,
+  name_tr text not null,
+  name_en text,
+  meter_type text,
+  dn text,
+  length_mm numeric,
+  flow_value text,
+  range_ratio text,
+  temperature_class text,
+  communication text[],
+  certificates text[],
+  warranty_months integer not null default 24,
+  battery_life_years numeric,
+  is_in_production boolean not null default true,
+  lead_time_days integer,
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+create table public.documents (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  document_type text not null,
+  file_path text,
+  valid_from date,
+  valid_until date,
+  product_id uuid references public.products(id) on delete set null,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create table public.tenders (
+  id uuid primary key default gen_random_uuid(),
+  ikn text unique,
+  authority text not null,
+  title text not null,
+  publication_date date,
+  tender_date timestamptz,
+  status public.record_status not null default 'new',
+  priority text default 'medium',
+  estimated_value numeric,
+  currency text default 'TRY',
+  technical_score numeric,
+  commercial_risk text,
+  owner_id uuid references public.profiles(id),
+  next_action text,
+  next_action_date date,
+  source_url text,
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+create table public.tender_items (
+  id uuid primary key default gen_random_uuid(),
+  tender_id uuid not null references public.tenders(id) on delete cascade,
+  line_no integer,
+  description text not null,
+  quantity numeric,
+  unit text,
+  suggested_product_id uuid references public.products(id),
+  compliance_status text,
+  compliance_score numeric,
+  created_at timestamptz not null default now()
+);
+
+create table public.tender_criteria (
+  id uuid primary key default gen_random_uuid(),
+  tender_id uuid not null references public.tenders(id) on delete cascade,
+  clause_no text,
+  clause_text text not null,
+  category text,
+  required_value text,
+  product_value text,
+  result text,
+  risk_level text,
+  evidence_document_id uuid references public.documents(id),
+  ai_explanation text,
+  human_approval text,
+  created_at timestamptz not null default now()
+);
+
+create table public.quotes (
+  id uuid primary key default gen_random_uuid(),
+  quote_no text unique not null,
+  customer_id uuid references public.customers(id),
+  tender_id uuid references public.tenders(id),
+  quote_date date not null default current_date,
+  valid_until date,
+  subtotal numeric not null default 0,
+  tax_total numeric not null default 0,
+  grand_total numeric not null default 0,
+  currency text not null default 'EUR',
+  payment_terms text,
+  lead_time text,
+  status public.record_status not null default 'new',
+  created_by uuid references public.profiles(id),
+  created_at timestamptz not null default now()
+);
+
+create table public.orders (
+  id uuid primary key default gen_random_uuid(),
+  order_no text unique not null,
+  customer_id uuid references public.customers(id),
+  quote_id uuid references public.quotes(id),
+  order_date date not null default current_date,
+  promised_date date,
+  status public.record_status not null default 'new',
+  production_progress numeric not null default 0 check (production_progress between 0 and 100),
+  shipment_date date,
+  invoice_date date,
+  owner_id uuid references public.profiles(id),
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+create table public.invoices (
+  id uuid primary key default gen_random_uuid(),
+  invoice_no text unique not null,
+  order_id uuid references public.orders(id),
+  customer_id uuid references public.customers(id),
+  invoice_date date not null,
+  due_date date not null,
+  amount numeric not null,
+  collected_amount numeric not null default 0,
+  currency text not null default 'TRY',
+  created_at timestamptz not null default now()
+);
+
+
+
+create table public.quote_items (
+  id uuid primary key default gen_random_uuid(),
+  quote_id uuid not null references public.quotes(id) on delete cascade,
+  product_id uuid references public.products(id),
+  description text not null,
+  quantity numeric not null default 1,
+  unit text not null default 'Adet',
+  unit_price numeric not null default 0,
+  discount_rate numeric not null default 0,
+  total numeric generated always as (quantity * unit_price * (1 - discount_rate / 100)) stored,
+  created_at timestamptz not null default now()
+);
+
+create table public.order_items (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.orders(id) on delete cascade,
+  product_id uuid references public.products(id),
+  description text not null,
+  quantity numeric not null,
+  produced_quantity numeric not null default 0,
+  accepted_quantity numeric not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create table public.production_plans (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.orders(id) on delete cascade,
+  planned_start date,
+  planned_finish date,
+  actual_start date,
+  actual_finish date,
+  planned_quantity numeric,
+  produced_quantity numeric not null default 0,
+  quality_status text default 'waiting',
+  status text default 'planned',
+  owner_id uuid references public.profiles(id),
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+create table public.payments (
+  id uuid primary key default gen_random_uuid(),
+  invoice_id uuid not null references public.invoices(id) on delete cascade,
+  payment_date date not null,
+  amount numeric not null,
+  currency text not null default 'TRY',
+  payment_method text,
+  reference_no text,
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+create table public.warranties (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid references public.orders(id),
+  customer_id uuid references public.customers(id),
+  product_id uuid references public.products(id),
+  serial_no text,
+  invoice_date date not null,
+  start_date date generated always as (invoice_date) stored,
+  end_date date not null,
+  status text default 'active',
+  extra_warranty_offered boolean not null default false,
+  owner_id uuid references public.profiles(id),
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+create table public.guarantees (
+  id uuid primary key default gen_random_uuid(),
+  guarantee_type text not null,
+  reference_type text,
+  reference_id uuid,
+  institution text not null,
+  document_no text,
+  amount numeric,
+  currency text default 'TRY',
+  start_date date,
+  end_date date,
+  status text,
+  owner_id uuid references public.profiles(id),
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+create table public.service_records (
+  id uuid primary key default gen_random_uuid(),
+  customer_id uuid references public.customers(id),
+  product_id uuid references public.products(id),
+  serial_no text,
+  invoice_date date,
+  fault_date date not null default current_date,
+  fault_description text not null,
+  probable_cause text,
+  root_cause text,
+  action_taken text,
+  result text,
+  cost numeric,
+  is_repeat boolean not null default false,
+  development_opportunity text,
+  owner_id uuid references public.profiles(id),
+  closed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table public.tasks (
+  id uuid primary key default gen_random_uuid(),
+  source_module text,
+  reference_id uuid,
+  title text not null,
+  description text,
+  department text,
+  owner_id uuid references public.profiles(id),
+  priority text not null default 'medium',
+  due_date date,
+  status public.record_status not null default 'new',
+  progress numeric not null default 0 check (progress between 0 and 100),
+  created_at timestamptz not null default now(),
+  completed_at timestamptz
+);
+
+-- Güvenlik: kullanıcı oturum açmadan veri okunamaz.
+alter table public.profiles enable row level security;
+alter table public.customers enable row level security;
+alter table public.products enable row level security;
+alter table public.documents enable row level security;
+alter table public.tenders enable row level security;
+alter table public.tender_items enable row level security;
+alter table public.tender_criteria enable row level security;
+alter table public.quotes enable row level security;
+alter table public.orders enable row level security;
+alter table public.invoices enable row level security;
+alter table public.quote_items enable row level security;
+alter table public.order_items enable row level security;
+alter table public.production_plans enable row level security;
+alter table public.payments enable row level security;
+alter table public.warranties enable row level security;
+alter table public.guarantees enable row level security;
+alter table public.service_records enable row level security;
+alter table public.tasks enable row level security;
+
+create policy "authenticated_read_products" on public.products for select to authenticated using (true);
+create policy "authenticated_read_customers" on public.customers for select to authenticated using (true);
+create policy "authenticated_read_tenders" on public.tenders for select to authenticated using (true);
+create policy "authenticated_read_tasks" on public.tasks for select to authenticated using (true);
+
+-- İlk veri örnekleri
+insert into public.products (code, series, name_tr, meter_type, dn, length_mm, flow_value, range_ratio, temperature_class, communication, certificates, lead_time_days)
+values
+('CM-HR1','CM-HR','Ultrasonik Kalorimetre M-Bus','Isı Sayacı','DN15',110,'Qp 1,5','50-100','Isıtma/Soğutma',array['M-Bus'],array['PTB'],28),
+('CM-HR2','CM-HR','Ultrasonik Kalorimetre M-Bus','Isı Sayacı','DN20',130,'Qp 2,5','50-100','Isıtma/Soğutma',array['M-Bus'],array['PTB'],28),
+('KT14','KT','Tek Hüzmeli Kuru Tip Su Sayacı','Su Sayacı','DN20',130,'Q3 2,5','R80/R100/R160','T90',array['M-Bus','Pulse'],array['MID'],21),
+('KDM5','KDM','Çok Hüzmeli Kuru Soğuk Su Sayacı','Su Sayacı','DN20',190,'Q3 2,5','R100/R125/R160','Soğuk',array['M-Bus','Pulse'],array['MID'],21),
+('VD5E','VDE','Volümetrik Soğuk Su Sayacı','Su Sayacı','DN20',190,'Q3 2,5','R160-R400','Soğuk',array['M-Bus','Pulse'],array['MID'],28)
+on conflict (code) do nothing;
+
+
+-- Yeni kullanıcı için otomatik profil oluşturma
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  insert into public.profiles (id, full_name, role)
+  values (new.id, coalesce(new.raw_user_meta_data->>'full_name', new.email, 'Kullanıcı'), 'viewer')
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+after insert on auth.users
+for each row execute procedure public.handle_new_user();
+
+-- İlk sürüm kullanım politikaları: oturum açmış kullanıcılar okuyabilir ve kayıt ekleyip güncelleyebilir.
+-- Rol bazlı daha sıkı yetkilendirme, sonraki sprintte profiles.role alanına göre daraltılacaktır.
+do $$
+declare
+  t text;
+begin
+  foreach t in array array['profiles','customers','products','documents','tenders','tender_items','tender_criteria','quotes','quote_items','orders','order_items','production_plans','invoices','payments','guarantees','warranties','service_records','tasks']
+  loop
+    execute format('drop policy if exists authenticated_select on public.%I', t);
+    execute format('drop policy if exists authenticated_insert on public.%I', t);
+    execute format('drop policy if exists authenticated_update on public.%I', t);
+    execute format('create policy authenticated_select on public.%I for select to authenticated using (true)', t);
+    execute format('create policy authenticated_insert on public.%I for insert to authenticated with check (true)', t);
+    execute format('create policy authenticated_update on public.%I for update to authenticated using (true) with check (true)', t);
+  end loop;
+end $$;
+
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [{ "name": "next" }],
+    "paths": { "@/*": ["./*"] }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
+
+GITHUB YÜKLEME KONTROL LİSTESİ
+
+[ ] .env.example
+[ ] .gitignore
+[ ] package.json
+[ ] tsconfig.json
+[ ] middleware.ts
+[ ] SUPABASE_SCHEMA.sql
+[ ] README.md
+[ ] KURULUM_REHBERI_TR.md
+[ ] app/ klasörü
+[ ] components/ klasörü
+[ ] lib/ klasörü
+[ ] public/ klasörü
+[ ] supabase/ klasörü ve içindeki schema.sql
+
+NOT: GitHub'da sadece README görünüyorsa tüm paket yüklenmemiştir.
+
+LESA Starter v2
+Build date: 2026-07-14
+Includes: functional Supabase login, protected dashboard, root SQL file, duplicate SQL under supabase/, Turkish setup guide.
+
+import { LoginForm } from "./LoginForm";
+
+export default function LoginPage() {
+  return (
+    <main className="min-h-screen flex items-center justify-center p-6 bg-slate-950">
+      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl">
+        <div className="text-xs font-bold tracking-[0.25em] text-sky-700">LESA</div>
+        <h1 className="mt-3 text-3xl font-bold text-slate-900">Sisteme Giriş</h1>
+        <p className="mt-2 text-sm text-slate-500">
+          Supabase Authentication bölümünde oluşturduğun kullanıcı ile giriş yap.
+        </p>
+        <LoginForm />
+      </div>
+    </main>
+  );
+}
+
+"use client";
+
+import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+
+export function LoginForm() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const supabase = createClient();
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) throw signInError;
+      router.push("/dashboard");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Giriş yapılamadı.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+      <label className="block text-sm font-semibold text-slate-700">
+        E-posta
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          placeholder="ad@firma.com"
+          className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-sky-500"
+        />
+      </label>
+      <label className="block text-sm font-semibold text-slate-700">
+        Şifre
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          placeholder="••••••••"
+          className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-sky-500"
+        />
+      </label>
+      {error ? <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full rounded-xl bg-slate-900 py-3 font-semibold text-white disabled:opacity-60"
+      >
+        {loading ? "Giriş yapılıyor..." : "Giriş Yap"}
+      </button>
+    </form>
+  );
+}
+
+import { AlertTriangle, Banknote, Factory, FileSearch, ShieldCheck, Wrench } from "lucide-react";
+import { KpiCard } from "@/components/KpiCard";
+import { createClient } from "@/lib/supabase/server";
+
+async function getCount(table: string, filter?: { column: string; value: string }) {
+  try {
+    const supabase = await createClient();
+    let query = supabase.from(table).select("id", { count: "exact", head: true });
+    if (filter) query = query.eq(filter.column, filter.value);
+    const { count, error } = await query;
+    if (error) return 0;
+    return count ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+export default async function DashboardPage() {
+  const [tenderCount, orderCount, overdueInvoiceCount, guaranteeCount, serviceCount, taskCount] = await Promise.all([
+    getCount("tenders"),
+    getCount("orders"),
+    getCount("invoices"),
+    getCount("guarantees"),
+    getCount("service_records"),
+    getCount("tasks"),
+  ]);
+
+  const actions = [
+    { level: "Kritik", item: "Yeni EKAP ihalesi", detail: "Teknik şartname ve ürün uygunluğu incelenecek", owner: "Satış / İş Planlama" },
+    { level: "Yüksek", item: "Üretim termini", detail: "Termin yaklaşan sipariş için fabrika teyidi alınacak", owner: "Üretim" },
+    { level: "Yüksek", item: "Geciken tahsilat", detail: "Vadesi geçen müşteriyle ödeme takibi yapılacak", owner: "Satış" },
+    { level: "Orta", item: "Garanti uyarısı", detail: "90 gün içinde bitecek garanti için ek garanti teklifi", owner: "Servis" },
+  ];
+
+  return (
+    <main className="min-h-screen bg-slate-100">
+      <header className="bg-slate-950 text-white px-6 py-5 md:px-10">
+        <div className="mx-auto max-w-7xl flex items-center justify-between">
+          <div><div className="text-xs tracking-[0.25em] text-sky-300">LESA</div><h1 className="text-2xl font-bold">Operasyon Merkezi</h1></div>
+          <div className="rounded-full bg-white/10 px-4 py-2 text-sm">CEM Su Sayaçları</div>
+        </div>
+      </header>
+      <div className="mx-auto max-w-7xl p-6 md:p-10">
+        <section>
+          <h2 className="text-2xl font-bold text-slate-900">Günlük Yönetim Ekranı</h2>
+          <p className="mt-1 text-slate-500">İhale, üretim, finans, garanti, servis ve görev durumları.</p>
+        </section>
+        <section className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <KpiCard title="Toplam İhale" value={String(tenderCount)} note="Supabase tenders tablosu" icon={FileSearch} />
+          <KpiCard title="Sipariş / Üretim" value={String(orderCount)} note="Takipteki siparişler" icon={Factory} tone="red" />
+          <KpiCard title="Fatura Kayıtları" value={String(overdueInvoiceCount)} note="Tahsilat ekranına bağlanacak" icon={Banknote} tone="amber" />
+          <KpiCard title="Teminat / Garanti" value={String(guaranteeCount)} note="Bitiş uyarıları" icon={ShieldCheck} tone="green" />
+          <KpiCard title="Servis Kayıtları" value={String(serviceCount)} note="Açık ve kapanan kayıtlar" icon={Wrench} />
+          <KpiCard title="Görevler" value={String(taskCount)} note="Departman bazlı işler" icon={AlertTriangle} tone="red" />
+        </section>
+        <section className="mt-8 grid gap-6 lg:grid-cols-[2fr_1fr]">
+          <div className="rounded-2xl bg-white p-6 shadow-sm border border-slate-200">
+            <h3 className="text-lg font-bold text-slate-900">Bugünün Aksiyonları</h3>
+            <div className="mt-5 space-y-3">
+              {actions.map((a) => (
+                <div key={a.item} className="grid gap-2 rounded-xl border border-slate-200 p-4 md:grid-cols-[90px_1fr_180px]">
+                  <span className="text-sm font-bold text-red-700">{a.level}</span>
+                  <div><div className="font-semibold text-slate-900">{a.item}</div><div className="text-sm text-slate-500">{a.detail}</div></div>
+                  <div className="text-sm font-semibold text-slate-600">{a.owner}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <aside className="rounded-2xl bg-slate-950 p-6 text-white shadow-sm">
+            <h3 className="text-lg font-bold">LESA Süreç Akışı</h3>
+            <div className="mt-5 space-y-3 text-sm text-slate-300">
+              {['İhale ve şartname','Teknik uygunluk','Yönetim fiyat onayı','Sipariş ve üretim','Sevkiyat ve fatura','Tahsilat','Garanti ve servis'].map((s, i) => <div key={s} className="flex gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-500 font-bold text-slate-950">{i+1}</span><span className="pt-1">{s}</span></div>)}
+            </div>
+          </aside>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+@import "tailwindcss";
+
+:root {
+  --background: #f3f6fb;
+  --foreground: #0b1f3a;
+  --navy: #0b1f3a;
+  --blue: #1f4e78;
+  --cyan: #d9eaf7;
+  --danger: #b42318;
+  --warning: #b54708;
+  --success: #027a48;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+a { color: inherit; text-decoration: none; }
+
+import type { Metadata } from "next";
+import "./globals.css";
+
+export const metadata: Metadata = {
+  title: "LESA | AI Business Operating System",
+  description: "CEM Su Sayaçları için ihale, üretim, finans, garanti ve servis yönetim platformu",
+};
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <html lang="tr">
+      <body>{children}</body>
+    </html>
+  );
+}
+
+import Link from "next/link";
+
+export default function Home() {
+  return (
+    <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
+      <section className="w-full max-w-5xl rounded-3xl border border-white/10 bg-white/5 p-8 md:p-14 shadow-2xl">
+        <div className="text-sm tracking-[0.3em] text-sky-300">LESA61</div>
+        <h1 className="mt-4 text-4xl md:text-6xl font-bold leading-tight">CEM’in dijital operasyon ve karar merkezi.</h1>
+        <p className="mt-6 max-w-3xl text-lg text-slate-300">
+          İhaleler, ürün uygunluğu, üretim terminleri, tahsilatlar, teminatlar, garanti ve servis kayıtları tek ekranda.
+        </p>
+        <div className="mt-10 flex flex-wrap gap-4">
+          <Link href="/dashboard" className="rounded-xl bg-sky-500 px-6 py-3 font-semibold text-slate-950 hover:bg-sky-400">Dashboard’u Aç</Link>
+          <Link href="/login" className="rounded-xl border border-white/20 px-6 py-3 font-semibold hover:bg-white/10">Giriş Ekranı</Link>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+import { LucideIcon } from "lucide-react";
+
+export function KpiCard({ title, value, note, icon: Icon, tone = "blue" }: { title: string; value: string; note: string; icon: LucideIcon; tone?: "blue" | "red" | "amber" | "green" }) {
+  const tones = {
+    blue: "bg-sky-50 text-sky-700 border-sky-100",
+    red: "bg-red-50 text-red-700 border-red-100",
+    amber: "bg-amber-50 text-amber-700 border-amber-100",
+    green: "bg-emerald-50 text-emerald-700 border-emerald-100",
+  };
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className={`inline-flex rounded-xl border p-2 ${tones[tone]}`}><Icon size={20} /></div>
+      <div className="mt-4 text-sm font-semibold text-slate-500">{title}</div>
+      <div className="mt-1 text-3xl font-bold text-slate-900">{value}</div>
+      <div className="mt-2 text-xs text-slate-500">{note}</div>
+    </div>
+  );
+}
+
+import { createBrowserClient } from "@supabase/ssr";
+
+export function createClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) throw new Error("Supabase ortam değişkenleri eksik.");
+  return createBrowserClient(url, key);
+}
+
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+
+export async function createClient() {
+  const cookieStore = await cookies();
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) throw new Error("Supabase ortam değişkenleri eksik.");
+
+  return createServerClient(url, key, {
+    cookies: {
+      getAll() { return cookieStore.getAll(); },
+      setAll(cookiesToSet) {
+        try { cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options)); }
+        catch { /* Server Component içinden çağrıldığında güvenli şekilde atlanır. */ }
+      },
+    },
+  });
+}
