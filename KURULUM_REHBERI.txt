@@ -1,0 +1,35 @@
+LESA v4 – EN AZ İŞÇİLİKLİ KURULUM
+
+A) SUPABASE
+1. Supabase projesini aç.
+2. Sol menü: SQL Editor.
+3. New query.
+4. SUPABASE_SCHEMA.sql dosyasını aç, tamamını kopyala.
+5. SQL Editor'e yapıştır ve Run'a bas.
+6. Sol menü: Authentication > Users > Add user.
+7. Kendi e-posta adresin ve güçlü bir şifre ile kullanıcı oluştur.
+
+B) GITHUB
+1. LESA deposunu aç.
+2. Add file > Upload files.
+3. Bu klasördeki 5 dosyayı aynı anda sürükle.
+4. Commit changes.
+
+C) VERCEL
+1. Vercel > Add New > Project.
+2. GitHub'dan aliozgenc61/LESA reposunu seç.
+3. Framework Preset: Other.
+4. Build Command alanını boş bırak.
+5. Output Directory alanını boş bırak.
+6. Deploy.
+
+D) İLK GİRİŞ
+1. Vercel'in verdiği adresi aç.
+2. Supabase URL: https://bxoowibxzenqjfrjqtec.supabase.co
+3. Supabase > Project Settings > API bölümündeki anon public key'i gir.
+4. Authentication bölümünde oluşturduğun kullanıcıyla giriş yap.
+
+GÜVENLİK:
+- service_role key'i hiçbir yere yazma.
+- Database şifresini GitHub'a yükleme.
+- Yalnızca anon public key kullanılacak.

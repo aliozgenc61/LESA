@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LESA | CEM Operasyon Merkezi</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div>
+        <div class="brand">LESA</div>
+        <div class="subtitle">CEM AI Business Operating System</div>
+      </div>
+      <button id="logoutBtn" class="secondary hidden">Çıkış</button>
+    </header>
+
+    <main>
+      <section id="configScreen" class="card">
+        <h1>İlk Bağlantı</h1>
+        <p>Supabase proje URL’sini ve anon anahtarını gir. Bilgiler yalnızca bu tarayıcıda saklanır.</p>
+        <label>Supabase URL</label>
+        <input id="supabaseUrl" value="https://bxoowibxzenqjfrjqtec.supabase.co" />
+        <label>Supabase Anon Key</label>
+        <input id="supabaseKey" type="password" placeholder="anon public key" />
+        <button id="saveConfigBtn">Bağlantıyı Kaydet</button>
+      </section>
+
+      <section id="authScreen" class="card hidden">
+        <h1>Giriş</h1>
+        <label>E-posta</label>
+        <input id="email" type="email" />
+        <label>Şifre</label>
+        <input id="password" type="password" />
+        <button id="loginBtn">Giriş Yap</button>
+        <p id="authMessage" class="message"></p>
+      </section>
+
+      <section id="dashboardScreen" class="hidden">
+        <div class="hero">
+          <div>
+            <h1>Operasyon Kontrol Merkezi</h1>
+            <p id="welcomeText">Güncel riskler ve aksiyonlar</p>
+          </div>
+          <button id="refreshBtn" class="secondary">Yenile</button>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi"><span>Açık İhaleler</span><strong id="openTenders">0</strong></div>
+          <div class="kpi"><span>7 Gün İçindeki İhaleler</span><strong id="nearTenders">0</strong></div>
+          <div class="kpi"><span>Geciken Üretim</span><strong id="lateOrders">0</strong></div>
+          <div class="kpi"><span>Geciken Tahsilat</span><strong id="lateInvoices">0</strong></div>
+          <div class="kpi"><span>90 Gün İçinde Biten</span><strong id="expiringGuarantees">0</strong></div>
+          <div class="kpi"><span>Açık Görevler</span><strong id="openTasks">0</strong></div>
+        </div>
+
+        <div class="grid">
+          <section class="card">
+            <h2>Yeni Görev</h2>
+            <input id="taskTitle" placeholder="Görev başlığı" />
+            <select id="taskDepartment">
+              <option>Satış</option><option>İş Planlama</option><option>Muhasebe</option>
+              <option>Üretim</option><option>Kalite</option><option>Servis</option><option>Yönetim</option>
+            </select>
+            <input id="taskOwner" placeholder="Sorumlu" />
+            <input id="taskDueDate" type="date" />
+            <button id="addTaskBtn">Görevi Ekle</button>
+            <p id="taskMessage" class="message"></p>
+          </section>
+
+          <section class="card">
+            <h2>Kritik Açık Görevler</h2>
+            <div id="taskList" class="list"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
