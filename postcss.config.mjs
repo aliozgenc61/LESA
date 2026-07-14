@@ -1,5 +1,7 @@
-export default {
-  plugins: {
-    "@tailwindcss/postcss": {},
-  },
-};
+node_modules
+.next
+.env
+.env.local
+.vercel
+*.log
+.DS_Store
